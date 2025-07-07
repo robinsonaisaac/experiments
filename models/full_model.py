@@ -323,6 +323,21 @@ class MFSTransformer(PreTrainedModel):
             if layer_key in self.mfs_layers:
                 self.mfs_layers[layer_key].ablate_features(feature_indices)
     
+    def restore_features(self, feature_indices: torch.Tensor, layers: Optional[list] = None):
+        """Restore previously ablated features across specified layers"""
+        if layers is None:
+            layers = list(self.mfs_layers.keys())
+        
+        for layer_key in layers:
+            if layer_key in self.mfs_layers:
+                if hasattr(self.mfs_layers[layer_key].safety_features, 'restore_features'):
+                    self.mfs_layers[layer_key].safety_features.restore_features(feature_indices)
+                else:
+                    # Fallback: restore by setting ablation mask back to 1
+                    valid_indices = feature_indices[feature_indices < self.config.n_safety_features]
+                    if len(valid_indices) > 0:
+                        self.mfs_layers[layer_key].safety_features.ablation_mask[valid_indices] = 1.0
+    
     def get_computational_cost(self) -> Dict[str, Any]:
         """Get computational cost breakdown"""
         base_params = sum(p.numel() for p in self.base_model.parameters())
